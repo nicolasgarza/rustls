@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::fs;
 
 /// My Simple Program
 #[derive(Parser)]
@@ -6,13 +7,22 @@ use clap::Parser;
 struct Cli {
     /// List of input values
     #[clap(value_parser)]
-    inputs: Vec<String>,
+    path: String,
 }
 
 fn main() {
     let cli = Cli::parse();
-
-    for input in cli.inputs {
-        println!("Looking for files in path: {}", input);
-    }
+    
+    match fs::read_dir(cli.path) {
+        Ok(entries) => {
+            entries
+                .filter_map(Result::ok) 
+                .for_each(|entry| {
+                    println!("{:?}", entry.path());
+                });
+        },
+        Err(e) => println!("Error: {}", e),
+    };
+    
+    
 }
