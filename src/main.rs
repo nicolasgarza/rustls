@@ -1,6 +1,7 @@
 use clap::Parser;
-use std::fs;
-
+use std::fs::{self, DirEntry};
+use std::time::SystemTime;
+use chrono::{DateTime, Utc};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -15,22 +16,49 @@ fn main() {
     match fs::read_dir(cli.path) {
         Ok(entries) => {
             for entry in entries.filter_map(Result::ok) {
-                let path = entry.path().to_string_lossy().to_string();
-                println!("Path: {:?}", path);
-
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_file() {
-                        println!("File extension: {:?}", path.rsplit_once('.').map_or("", |(_, right)| right));
-                        println!("{} bytes", metadata.len());
-                    } else if metadata.is_dir() {
-                        println!("Folder");
-                        println!("Permissions: {:?}", metadata.permissions());
-                    }
-                }
+                println!("{}", construct_path_str(entry));
             }
         },
         Err(e) => println!("Error: {}", e),
     };
     
     
+}
+
+fn construct_path_str(entry: DirEntry) -> String {
+    let path = entry.path().to_string_lossy().to_string();
+    let mut fin: String = String::new();
+
+    if let Ok(metadata) = entry.metadata() {
+        if metadata.permissions().readonly() {
+            fin = String::from("Read-only   ");
+        } else {
+            fin = String::from("Writable    ");
+        }
+        fin.push_str({
+            &format_system_time(metadata.modified())
+        });
+        if metadata.is_file() {
+            fin.push_str(metadata.len().to_string().as_str())
+        } 
+    };
+    fin.push_str(path.as_str());
+    fin
+}
+
+
+fn format_system_time(result: Result<SystemTime, std::io::Error>) -> String {
+    match result {
+        Ok(system_time) => {
+            // Convert SystemTime to DateTime<Utc>
+            let datetime: DateTime<Utc> = system_time.into();
+
+            // Format the DateTime into the desired string format
+            datetime.format("%m/%d/%Y %I:%M %p").to_string()
+        }
+        Err(_) => {
+            // Handle the error case, perhaps by returning a default string or an error message
+            "Error: Unable to retrieve time".to_string()
+        }
+    }
 }
