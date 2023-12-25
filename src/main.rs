@@ -16,7 +16,7 @@ fn main() {
     match fs::read_dir(cli.path) {
         Ok(entries) => {
             for entry in entries.filter_map(Result::ok) {
-                println!("{}", construct_path_str(entry));
+                construct_path_str(entry);
             }
         },
         Err(e) => println!("Error: {}", e),
@@ -25,40 +25,42 @@ fn main() {
     
 }
 
-fn construct_path_str(entry: DirEntry) -> String {
+fn construct_path_str(entry: DirEntry) {
     let path = entry.path().to_string_lossy().to_string();
-    let mut fin: String = String::new();
-
+    let mut object_permissions = String::new(); 
+    let mut last_modified_date = String::new(); 
+    let mut file_size = String::new();
+    
     if let Ok(metadata) = entry.metadata() {
-        if metadata.permissions().readonly() {
-            fin = String::from("Read-only   ");
+
+        object_permissions = if metadata.permissions().readonly() {
+            "Read-only".to_string()
         } else {
-            fin = String::from("Writable    ");
+            "Writable".to_string()
+        };
+
+        if let Ok(time) = metadata.modified() {
+            last_modified_date = format_system_time(time);
         }
-        fin.push_str({
-            &format_system_time(metadata.modified())
-        });
+
         if metadata.is_file() {
-            fin.push_str(metadata.len().to_string().as_str())
-        } 
-    };
-    fin.push_str(path.as_str());
-    fin
-}
-
-
-fn format_system_time(result: Result<SystemTime, std::io::Error>) -> String {
-    match result {
-        Ok(system_time) => {
-            // Convert SystemTime to DateTime<Utc>
-            let datetime: DateTime<Utc> = system_time.into();
-
-            // Format the DateTime into the desired string format
-            datetime.format("%m/%d/%Y %I:%M %p").to_string()
-        }
-        Err(_) => {
-            // Handle the error case, perhaps by returning a default string or an error message
-            "Error: Unable to retrieve time".to_string()
+            file_size = metadata.len().to_string();
         }
     }
+    println!("{}", print_object(path, object_permissions, last_modified_date, file_size))
+    
+}
+
+fn print_object(path: String, object_permissions: String, last_modified_date: String, file_size: String) -> String{
+    let formatted_perms = format!("{:<width$}", object_permissions, width = 14);
+    let formatted_mod_date = format!("{:>width$}", last_modified_date, width = 20);
+    let formatted_size = format!("{:>width$}", file_size, width = 14);
+    let formatted_path = format!("{:>width$}", path, width=30);
+    format!("{}{}{}{}", formatted_perms, formatted_mod_date, formatted_size, formatted_path)
+}
+
+fn format_system_time(result: SystemTime) -> String {
+    let datetime: DateTime<Utc> = result.into();
+
+    datetime.format("%m/%d/%Y %I:%M %p").to_string()
 }
