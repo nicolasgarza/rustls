@@ -1,8 +1,10 @@
+// ls
+
 use std::fs::{DirEntry, ReadDir};
 use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 
-pub fn run(entries: ReadDir) {
+pub fn run_ls(entries: ReadDir) {
     for entry in entries.filter_map(Result::ok) {
         construct_path_str(entry);
     }

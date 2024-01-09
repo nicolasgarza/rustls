@@ -1,22 +1,26 @@
-use clap::Parser;
+use clap::{command, arg, Command};
 use std::fs;
-use rustls::run;
-
-#[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
-struct Cli {
-    #[clap(value_parser)]
-    path: String,
-}
 
 fn main() {
-    let cli = Cli::parse();
+    let matches = command!()
+        .arg(arg!([path])
+            .required(true)
+            .index(1)
+        )
+        .get_matches();
+        
     
-    match fs::read_dir(cli.path) {
-        Ok(entries) => {
-            run(entries);
-        },
-        Err(e) => println!("Error: {}", e),
-    };
-    
+    let path = matches.get_one::<String>("path");
+
+        match fs::read_dir(path.unwrap()) {
+            Ok(entries) => {
+                rustls::run_ls(entries);
+            },
+            Err(e) => println!("Error: {}", e),
+        };
+
+        
 }
+
+
+
