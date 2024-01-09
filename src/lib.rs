@@ -1,16 +1,81 @@
 // ls
 
-use std::fs::{DirEntry, ReadDir};
+use std::fmt;
+use std::fs::DirEntry;
 use std::time::SystemTime;
 use chrono::{DateTime, Utc};
 
-pub fn run_ls(entries: ReadDir) {
-    for entry in entries.filter_map(Result::ok) {
-        construct_path_str(entry);
+pub struct Config {
+    pub long_format: bool,
+    pub display_all: bool,
+    pub recursively_list: bool,
+    pub sort_by_modify_date: bool,
+    pub sort_by_file_size: bool,
+    pub reverse_order: bool,
+}
+
+struct File {
+    name: String,
+    permissions: Option<String>,
+    last_modified_date: Option<String>,
+    file_size: Option<String>,
+}
+
+impl fmt::Display for File {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
+        parts.push(self.name.clone());
+        match &self.permissions {
+            Some(value) => parts.push(format!("{:12}", value)),
+            None => parts.push("            ".to_string()),
+        };
+        match &self.last_modified_date {
+            Some(value) => parts.push(format!("{:20}", value)),
+            None => parts.push("                    ".to_string()),
+        };
+        match &self.file_size {
+            Some(value) => parts.push(format!("{:12}", value)),
+            None => parts.push("            ".to_string()),
+        };
+        write!(f, "{}", parts.join(" "))
     }
 }
 
-fn construct_path_str(entry: DirEntry) {
+pub fn run_ls(path: Option<&String>, config: Config) {
+    match config.recursively_list {
+        true => recursive_walk(path.unwrap(), config),
+        false => walk(path.unwrap(), config),
+    }
+}
+
+pub fn walk(path: &String, config: Config) {
+    let mut files: Vec<File> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                if config.long_format {
+                    files.push(long_format_file(entry));
+                } else {
+                    files.push(File {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        permissions: None,
+                        last_modified_date: None,
+                        file_size: None,
+                    });
+                }
+            }
+        }
+    }
+    
+    println!("{}", format_files(files, config));
+    
+}
+
+pub fn recursive_walk(_path: &String, _config: Config) {
+    todo!()
+}
+
+fn long_format_file(entry: DirEntry) -> File {
     let path = entry.path().to_string_lossy().to_string();
     let mut object_permissions = String::new(); 
     let mut last_modified_date = String::new(); 
@@ -32,20 +97,41 @@ fn construct_path_str(entry: DirEntry) {
             file_size = metadata.len().to_string();
         }
     }
-    println!("{}", print_object(path, object_permissions, last_modified_date, file_size))
     
-}
-
-fn print_object(path: String, object_permissions: String, last_modified_date: String, file_size: String) -> String{
-    let formatted_perms = format!("{:<width$}", object_permissions, width = 14);
-    let formatted_mod_date = format!("{:>width$}", last_modified_date, width = 20);
-    let formatted_size = format!("{:>width$}", file_size, width = 14);
-    let formatted_path = format!("{:>width$}", path, width=30);
-    format!("{}{}{}{}", formatted_perms, formatted_mod_date, formatted_size, formatted_path)
+    File {
+        name: path,
+        permissions: Some(object_permissions),
+        last_modified_date: Some(last_modified_date),
+        file_size: Some(file_size),
+    }
+    
 }
 
 fn format_system_time(result: SystemTime) -> String {
     let datetime: DateTime<Utc> = result.into();
 
     datetime.format("%m/%d/%Y %I:%M %p").to_string()
+}
+
+fn format_files(mut files: Vec<File>, config: Config) -> String {
+    let max_name_length = files.iter().map(|item| item.name.len()).max().unwrap_or(0);
+    for file in files.iter_mut() {
+        file.name = format!("{:width$}", file.name, width = max_name_length+5);
+    }
+    if config.sort_by_modify_date {
+        files.sort_by(|a,b| a.last_modified_date.cmp(&b.last_modified_date));
+    } else if config.sort_by_file_size {
+        files.sort_by(|a,b| a.file_size.cmp(&b.file_size));
+    }
+
+    if config.reverse_order {
+        files.reverse();
+    }
+    files.insert(0, File {
+        name: format!("{:width$}", "Name", width = max_name_length+5),
+        permissions: Some("Permissions".to_string()),
+        last_modified_date: Some("Last Modified".to_string()),
+        file_size: Some("Size".to_string()),
+    });
+    files.iter().map(|item| item.to_string()).collect::<Vec<_>>().join("\n")
 }
