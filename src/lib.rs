@@ -76,7 +76,7 @@ pub fn recursive_walk(_path: &String, _config: Config) {
 }
 
 fn long_format_file(entry: DirEntry) -> File {
-    let path = entry.path().to_string_lossy().to_string();
+    let path = entry.file_name().to_string_lossy().to_string();
     let mut object_permissions = String::new(); 
     let mut last_modified_date = String::new(); 
     let mut file_size = String::new();
@@ -118,6 +118,11 @@ fn format_files(mut files: Vec<File>, config: Config) -> String {
     for file in files.iter_mut() {
         file.name = format!("{:width$}", file.name, width = max_name_length+5);
     }
+
+    if !config.display_all {
+        files = files.into_iter().filter(|item| !item.name.starts_with(".")).collect();
+    }
+
     if config.sort_by_modify_date {
         files.sort_by(|a,b| a.last_modified_date.cmp(&b.last_modified_date));
     } else if config.sort_by_file_size {
@@ -127,11 +132,21 @@ fn format_files(mut files: Vec<File>, config: Config) -> String {
     if config.reverse_order {
         files.reverse();
     }
-    files.insert(0, File {
-        name: format!("{:width$}", "Name", width = max_name_length+5),
-        permissions: Some("Permissions".to_string()),
-        last_modified_date: Some("Last Modified".to_string()),
-        file_size: Some("Size".to_string()),
-    });
+    if config.long_format {
+        files.insert(0, File {
+            name: format!("{:width$}", "Name", width = max_name_length+5),
+            permissions: Some("Permissions".to_string()),
+            last_modified_date: Some("Last Modified".to_string()),
+            file_size: Some("Size".to_string()),
+        });    
+    } else {
+        files.insert(0, File {
+            name: "Name".to_string(),
+            permissions: None,
+            last_modified_date: None,
+            file_size: None,
+        });
+    }
+    
     files.iter().map(|item| item.to_string()).collect::<Vec<_>>().join("\n")
 }
