@@ -43,7 +43,7 @@ impl fmt::Display for File {
 
 pub fn run_ls(path: Option<&String>, config: Config) {
     match config.recursively_list {
-        true => recursive_walk(path.unwrap(), config),
+        true => recursive_walk(path.unwrap().to_string(), &config),
         false => walk(path.unwrap(), config),
     }
 }
@@ -54,7 +54,7 @@ pub fn walk(path: &String, config: Config) {
         for entry in entries {
             if let Ok(entry) = entry {
                 if config.long_format {
-                    files.push(long_format_file(entry));
+                    files.push(long_format_file(&entry));
                 } else {
                     files.push(File {
                         name: entry.file_name().to_string_lossy().to_string(),
@@ -67,15 +67,41 @@ pub fn walk(path: &String, config: Config) {
         }
     }
     
-    println!("{}", format_files(files, config));
+    println!("{}", format_files(files, &config));
     
 }
 
-pub fn recursive_walk(_path: &String, _config: Config) {
-    todo!()
+pub fn recursive_walk(path: String, config: &Config) {
+    let mut files: Vec<File> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                if config.long_format {
+                    files.push(long_format_file(&entry));
+                } else {
+                    files.push(File {
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        permissions: None,
+                        last_modified_date: None,
+                        file_size: None,
+                    });
+                }
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_dir() {
+                        let path = entry.path().to_string_lossy().to_string();
+                        recursive_walk(path, config);
+                    }
+                }
+            }
+        }
+    }
+    
+    println!("{}", format_files(files, config));
+    
+
 }
 
-fn long_format_file(entry: DirEntry) -> File {
+fn long_format_file(entry: &DirEntry) -> File {
     let path = entry.file_name().to_string_lossy().to_string();
     let mut object_permissions = String::new(); 
     let mut last_modified_date = String::new(); 
@@ -113,7 +139,7 @@ fn format_system_time(result: SystemTime) -> String {
     datetime.format("%m/%d/%Y %I:%M %p").to_string()
 }
 
-fn format_files(mut files: Vec<File>, config: Config) -> String {
+fn format_files(mut files: Vec<File>, config: &Config) -> String {
     let max_name_length = files.iter().map(|item| item.name.len()).max().unwrap_or(0);
     for file in files.iter_mut() {
         file.name = format!("{:width$}", file.name, width = max_name_length+5);
